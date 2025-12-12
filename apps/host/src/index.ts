@@ -1,34 +1,26 @@
+// src/index.ts
 import Fastify from "fastify";
-import fastifyCors from "@fastify/cors";
-import fastifyWebsocket from "@fastify/websocket";
-
 import { registerRoutes } from "./routes";
-import { startSyncClock } from "./core/sync-clock";
 import { AudioEngine } from "./core/audio-engine";
-import { ClientManager } from "./services/client-manager";
-import { SourceManager } from "./services/source-manager";
-import { GroupManager } from "./services/group-manager";
+import { WebRtcEngine } from "./core/webrtc-engine";
 import { RoutingTable } from "./core/routing-table";
+import { SourceScanner } from "./core/source-scanner";
 
-// GLOBAL SINGLETONS
 export const audioEngine = new AudioEngine();
-export const clients = new ClientManager();
-export const sources = new SourceManager();
-export const groups = new GroupManager();
 export const routingTable = new RoutingTable();
+export const sources = new SourceScanner();
+export const webrtc = new WebRtcEngine(audioEngine);
 
-async function main() {
-    const server = Fastify({ logger: true });
+// optional client registry for statusApi
+export const clientRegistry: { [id: string]: { lastSeen: number } } = {};
 
-    await server.register(fastifyWebsocket);
-    await server.register(fastifyCors, { origin: "*" });
+const server = Fastify({ logger: true });
+registerRoutes(server);
 
-    audioEngine.init();
-    startSyncClock();
+// start engines
+audioEngine.start();
+webrtc.start();
 
-    registerRoutes(server);
-
-    server.listen({ port: 8080, host: "0.0.0.0" });
-}
-
-main();
+server.listen({ port: 3000, host: "0.0.0.0" }).then(() => {
+    console.log("Host running on :3000");
+});

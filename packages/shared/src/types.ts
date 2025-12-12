@@ -12,6 +12,8 @@ export interface AudioSource {
 
 export interface ClientStatus  {
     id: string;
+    ip: string;
+    rtpPort: number;
     online: boolean;
     latencyMs: number;
     signalStrength: number;

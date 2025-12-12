@@ -1,10 +1,10 @@
 import { FastifyInstance } from "fastify";
-import { clients, sources, routingTable } from "../index";
+import { sources, routingTable, webrtc, clientRegistry } from "../index";
 
 export default async function statusApi(server: FastifyInstance) {
     server.get("/", () => ({
-        clients: clients.list(),
-        sources: sources.list(),
+        webrtcClients: webrtc.listClients(),
+        sources: sources.listSources(),
         routing: Object.fromEntries(routingTable.getTable()),
         uptime: process.uptime(),
         timestamp: Date.now()

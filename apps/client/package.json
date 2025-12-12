@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
+    "node-fetch": "^3.3.2",
     "node-webrtc": "^0.0.0",
+    "speaker": "^0.5.5",
     "winston": "^3.18.3",
+    "wrtc": "^0.4.7",
     "ws": "^8.18.3"
   },
   "devDependencies": {
