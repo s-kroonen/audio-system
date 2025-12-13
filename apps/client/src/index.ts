@@ -1,74 +1,134 @@
 // packages/client/src/client.ts
 import fetch from "node-fetch";
-import wrtc from 'wrtc';
-
+import wrtc from "wrtc";
 import Speaker from "speaker";
+import { EventEmitter } from "events";
 
-const HOST = process.env.HOST_URL || "http://localhost:3000";
-const CLIENT_ID = process.env.CLIENT_ID || "client1";
-
-async function runClient() {
-    // 1) register -> get offer SDP
-    const reg = await fetch(`${HOST}/api/clients/register`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: CLIENT_ID }),
-    });
-    if (!reg.ok) throw new Error("register failed " + reg.statusText);
-    const offer = await reg.json();
-    if (!offer || !offer.sdp) throw new Error("no offer from host");
-
-    const pc = new wrtc.RTCPeerConnection({ iceServers: [] });
-
-
-    // add recvonly transceiver
-    pc.addTransceiver("audio", { direction: "recvonly" });
-
-    // Prepare speaker for 48kHz mono 16-bit
-    const speaker = new Speaker({ channels: 1, bitDepth: 16, sampleRate: 48000 });
-
-    // handle incoming tracks: create RTCAudioSink on track and pipe to speaker
-    pc.ontrack = (ev: any) => {
-        // ev.track should exist (non-browser)
-        const track = ev.track || (ev.streams && ev.streams[0] && ev.streams[0].getAudioTracks && ev.streams[0].getAudioTracks()[0]);
-        if (!track) {
-            console.warn("no audio track in event", ev);
-            return;
-        }
-
-        const nonstandard = (wrtc as any).nonstandard;
-        const sink = new nonstandard.RTCAudioSink(track);
-
-        sink.ondata = (data: any) => {
-            // data.samples is Int16Array
-            const buf = Buffer.from(data.samples.buffer);
-            speaker.write(buf);
-        };
-
-        track.onended = () => {
-            sink.stop();
-        };
-    };
-
-    // set remote (offer from host)
-    await pc.setRemoteDescription({ type: offer.type || "offer", sdp: offer.sdp });
-
-    // create and set local answer
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    // post answer back to host
-    const postAnswer = await fetch(`${HOST}/api/clients/${CLIENT_ID}/answer`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: pc.localDescription?.type, sdp: pc.localDescription?.sdp }),
-    });
-    if (!postAnswer.ok) throw new Error("posting answer failed " + postAnswer.statusText);
-
-    console.log("Client connected and playing audio...");
+interface ClientConfig {
+    host: string;
+    clientId: string;
+    outputDevice?: number; // optional speaker device index
+    channels?: number;
+    sampleRate?: number;
+    bitDepth?: number;
+    reconnectAttempts?: number;
+    reconnectDelay?: number; // ms
 }
 
-runClient().catch((err) => {
-    console.error("client error:", err);
-    process.exit(1);
+const defaultConfig: ClientConfig = {
+    host: process.env.HOST_URL || "http://localhost:3000",
+    clientId: process.env.CLIENT_ID || "client1",
+    channels: 1,
+    bitDepth: 16,
+    sampleRate: 48000,
+    reconnectAttempts: 5,
+    reconnectDelay: 3000,
+};
+
+class AudioClient extends EventEmitter {
+    private config: ClientConfig;
+    private speaker?: Speaker;
+    private pc?: wrtc.RTCPeerConnection;
+    private attempts = 0;
+
+    constructor(config?: Partial<ClientConfig>) {
+        super();
+        this.config = { ...defaultConfig, ...config };
+    }
+
+    async start() {
+        try {
+            await this.connect();
+        } catch (err) {
+            console.error("Initial connection failed:", err);
+            await this.tryReconnect();
+        }
+    }
+
+    private async tryReconnect() {
+        while (this.attempts < (this.config.reconnectAttempts || 0)) {
+            this.attempts++;
+            console.log(`Reconnect attempt ${this.attempts}...`);
+            await new Promise((r) => setTimeout(r, this.config.reconnectDelay));
+            try {
+                await this.connect();
+                console.log("Reconnected successfully!");
+                return;
+            } catch (err) {
+                console.error("Reconnect failed:", err);
+            }
+        }
+        console.error("All reconnect attempts failed. Exiting.");
+        process.exit(1);
+    }
+
+    private async connect() {
+        console.log("Registering client with host:", this.config.host);
+
+        const reg = await fetch(`${this.config.host}/api/clients/register`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id: this.config.clientId }),
+        });
+
+        if (!reg.ok) throw new Error("Register failed " + reg.statusText);
+
+        const offer = await reg.json();
+        if (!offer || !offer.sdp) throw new Error("No offer from host");
+
+        this.pc = new wrtc.RTCPeerConnection({ iceServers: [] });
+        this.pc.addTransceiver("audio", { direction: "recvonly" });
+
+        this.speaker = new Speaker({
+            channels: this.config.channels,
+            bitDepth: this.config.bitDepth,
+            sampleRate: this.config.sampleRate,
+        });
+
+        this.pc.ontrack = (ev: any) => {
+            const track = ev.track || (ev.streams?.[0]?.getAudioTracks?.()?.[0]);
+            if (!track) {
+                console.warn("No audio track received", ev);
+                return;
+            }
+
+            const nonstandard = (wrtc as any).nonstandard;
+            const sink = new nonstandard.RTCAudioSink(track);
+
+            sink.ondata = (data: any) => {
+                try {
+                    const buf = Buffer.from(data.samples.buffer);
+                    this.speaker!.write(buf);
+                } catch (err) {
+                    console.error("Error writing audio to speaker:", err);
+                }
+            };
+
+            track.onended = () => {
+                sink.stop();
+                console.log("Track ended");
+            };
+        };
+
+        await this.pc.setRemoteDescription({ type: offer.type || "offer", sdp: offer.sdp });
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+
+        const postAnswer = await fetch(`${this.config.host}/api/clients/${this.config.clientId}/answer`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ type: this.pc.localDescription?.type, sdp: this.pc.localDescription?.sdp }),
+        });
+
+        if (!postAnswer.ok) throw new Error("Posting answer failed " + postAnswer.statusText);
+
+        console.log("Client connected and ready to receive audio.");
+    }
+}
+
+// Example usage:
+const client = new AudioClient({
+    outputDevice: 0, // currently Speaker lib uses default device, can be extended later
+    reconnectAttempts: 10,
 });
+client.start();

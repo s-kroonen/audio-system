@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon --watch src -e ts --exec ts-node -P tsconfig.json src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsup src/index.ts --format esm,cjs --dts --out-dir dist",
     "start": "node dist/index.js",
     "test": "vitest"
