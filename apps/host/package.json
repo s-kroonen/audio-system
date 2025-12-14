@@ -12,7 +12,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@audio/shared": "workspace:*",
     "@fastify/cors": "^11.1.0",
     "@fastify/websocket": "^11.2.0",
     "@types/node": "^22.15.3",
