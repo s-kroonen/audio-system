@@ -1,4 +1,14 @@
-import {AudioSource} from "@shared/types";
+export type SourceType = "spotify" | "airplay" | "bluetooth" | "linein" | "client";
+
+export interface AudioSource {
+    id: string;
+    name: string;
+    type: SourceType;
+    meta?: Record<string, unknown>;
+    // playback state:
+    playing?: boolean;
+    positionMs?: number;
+}
 
 export class SourceScanner {
     private sources: AudioSource[] = [

@@ -1,0 +1,17 @@
+{
+  "appId": "com.yourapp.audio-client",
+  "productName": "AudioClient",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "client.json"
+  ],
+  "win": {
+    "target": "zip"
+  },
+  "linux": {
+    "target": "zip"
+  }
+}

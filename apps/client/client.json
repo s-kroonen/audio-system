@@ -1,0 +1,7 @@
+{
+  "host": "http://localhost:3000",
+  "clientId": "client-1",
+  "channels": 2,
+  "sampleRate": 48000,
+  "headless": false
+}

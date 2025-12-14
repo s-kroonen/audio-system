@@ -1,32 +1,28 @@
 {
-  "name": "client",
-  "version": "1.0.0",
+  "name": "@audio/client",
   "private": true,
+  "main": "dist/main/main.js",
   "type": "module",
+  "version": "0.1.1",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm,cjs --dts --out-dir dist",
-    "start": "node dist/index.js",
-    "test": "vitest"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "node-fetch": "^3.3.2",
-    "node-webrtc": "^0.0.0",
-    "speaker": "^0.5.5",
-    "winston": "^3.18.3",
-    "wrtc": "^0.4.7",
-    "ws": "^8.18.3"
+    "build:ts": "tsc",
+    "build": "tsc && electron-builder",
+
+    "dev": "concurrently -k \"pnpm build:ts --watch\" \"pnpm electron:dev\"",
+    "electron:dev": "wait-on dist/main/main.js && electron .",
+
+    "start": "electron .",
+    "start:headless": "electron . --headless"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.5.10",
-    "eslint": "^9.39.1",
-    "nodemon": "^3.1.11",
-    "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.15"
+    "@types/node": "^25.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.0",
+    "wait-on": "^9.0.3"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3"
   }
 }

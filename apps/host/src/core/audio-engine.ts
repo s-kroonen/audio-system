@@ -20,14 +20,13 @@ export class AudioEngine extends EventEmitter {
         const step = (2 * Math.PI * this.freq) / this.sampleRate;
 
         const emitFrame = () => {
-            const buf = new Int16Array(this.frameSamples);
+            const buf = new Int16Array(this.frameSamples); // mono
             for (let i = 0; i < this.frameSamples; i++, this.phase += step) {
-                // simple sine wave - amplitude scaled to int16
-                const s = Math.sin(this.phase);
-                buf[i] = Math.max(-1, Math.min(1, s)) * 0.6 * 0x7fff;
+                buf[i] = Math.sin(this.phase) * 0.6 * 0x7fff;
             }
-            // emit 'frame' event with Int16Array
             this.emit("frame", buf);
+
+
         };
 
         // schedule at roughly 10ms
